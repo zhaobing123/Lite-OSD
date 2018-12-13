@@ -1,0 +1,166 @@
+C51 COMPILER V9.54   SPI                                                                   12/13/2018 17:49:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE SPI
+OBJECT MODULE PLACED IN .\Objects\spi.obj
+COMPILER INVOKED BY: C:\Keil_v4\C51\BIN\C51.EXE src\spi.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\inc) DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\spi.lst) TABS(2) OBJECT(.\Objects\spi.obj)
+
+line level    source
+
+   1          //CLK  P1.2
+   2          //CSN  P1.3
+   3          //DATA P1.5
+   4          #include "spi.h"
+   5          #include <intrins.h>
+   6          
+   7          /*粗虐微秒延时*/
+   8          void delay_us(unsigned char i)
+   9          {
+  10   1          unsigned char n;
+  11   1          for(n=0;n<i;i++)
+  12   1          {
+  13   2              _nop_();
+  14   2              _nop_();
+  15   2              _nop_();
+  16   2              _nop_();
+  17   2          }
+  18   1      }
+  19          /*********************************************
+  20          *函数名：spi_cson
+  21          *功  能：SPI 片选信号开启
+  22          *参  数：void
+  23          *返回值：void
+  24          **********************************************/
+  25          void spi_cson(void)
+  26          {
+  27   1        CSN = 0;             //拉低片选脚
+  28   1      }
+  29          
+  30          
+  31          /*********************************************
+  32          *函数名：spi_cson
+  33          *功  能：SPI 片选信号关闭
+  34          *参  数：void
+  35          *返回值：void
+  36          **********************************************/
+  37          void spi_csoff(void)
+  38          {
+  39   1        CSN = 1;             //拉高片选脚 
+  40   1      }
+  41          
+  42          
+  43          /*********************************************
+  44          *函数名：spi_sendbyte
+  45          *功  能：发送一个字节
+  46          *参  数：void
+  47          *返回值：void
+  48          **********************************************/
+  49          void spi_sendbyte(unsigned char dat)
+  50          {
+  51   1          int i;
+  52   1          for(i=7 ; i>=0 ; i--)
+  53   1          {
+  54   2              if((dat>>i)&1)
+C51 COMPILER V9.54   SPI                                                                   12/13/2018 17:49:10 PAGE 2   
+
+  55   2              {
+  56   3                    IO = 1;
+  57   3              }
+  58   2              else
+  59   2              {
+  60   3                    IO = 0;
+  61   3              }
+  62   2              CLK = 1;
+  63   2              delay_us(1);
+  64   2              CLK = 0;
+  65   2              delay_us(1);
+  66   2          }
+  67   1      }
+  68          
+  69          
+  70          /*********************************************
+  71          *函数名：spi_recvbyte
+  72          *功  能：向spi MOSI接收一个字节
+  73          *参  数：void
+  74          *返回值：recv 接收到的字节
+  75          **********************************************/
+  76          unsigned char spi_recvbyte(void)
+  77          {
+  78   1          int recv = 0, i = 0;
+  79   1          for(i=7 ; i>=0 ;i--)
+  80   1          {
+  81   2              while(!CLK);                   //等待时钟线拉高，之后读取数据
+  82   2              recv = recv << 1;              
+  83   2              recv = recv | (IO ? 1 : 0);    //判断IO上的数据是否为1
+  84   2              while(CLK);                    //等待时钟线拉低，进行下一位的数据读取
+  85   2          }
+  86   1          return recv;
+  87   1      }
+  88          
+  89          /*********************************************
+  90          *函数名：Read_RxData
+  91          *功  能：读取SPI数据串
+  92          *参  数：数据接收指针   length 数据读取长度
+  93          *返回值：0：失败   1：读取成功
+  94          **********************************************/
+  95          void Read_Data( uint8_t *readData,  uint8_t length)
+  96          {
+  97   1        uint8_t index = 0;
+  98   1        while(CSN != 0);                    //等待片选拉低
+  99   1        while(index < length)
+ 100   1        {
+ 101   2          readData[index] = spi_recvbyte();
+ 102   2          index++;
+ 103   2        }
+ 104   1      }
+ 105          
+ 106          
+ 107          /*********************************************
+ 108          *函数名：Tx_Data
+ 109          *功  能：SPI发送字符串数组
+ 110          *参  数：void 
+ 111          *返回值：void
+ 112          **********************************************/
+ 113          void Tx_Data(uint8_t *TxData ,uint8_t length)
+ 114          {
+ 115   1        uint8_t index = 0;
+ 116   1        spi_cson();
+C51 COMPILER V9.54   SPI                                                                   12/13/2018 17:49:10 PAGE 3   
+
+ 117   1        while(index < length)
+ 118   1        {
+ 119   2          spi_sendbyte(TxData[index]);
+ 120   2          index++;
+ 121   2        } 
+ 122   1        spi_csoff();
+ 123   1      }
+ 124          
+ 125          /*************************
+ 126          *函数名字：OSD数据包检验
+ 127          *函数功能：包的校验和计算
+ 128          *参    数：void
+ 129          *返 回 值：void
+ 130          **************************/
+ 131          uint8_t OSD_checksum(uint8_t OSD_DATA[])
+ 132          {
+ 133   1          unsigned char i;
+ 134   1          unsigned char sum = OSD_DATA[0];
+ 135   1          for (i = 1; i < 3; i++)
+ 136   1          sum += OSD_DATA[i];
+ 137   1          return sum;
+ 138   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    243    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      12
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

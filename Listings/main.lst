@@ -1,0 +1,165 @@
+C51 COMPILER V9.54   MAIN                                                                  12/13/2018 17:49:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v4\C51\BIN\C51.EXE src\main.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\inc) DEBUG OBJECTEXTEND PRI
+                    -NT(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          // Resources:
+   2          //   SYSCLK - 24.5 MHz HFOSC0 / 1
+   3          //   UART0  - 115200 baud, 8-N-1
+   4          //   Timer1 - UART0 clock source
+   5          //   P0.4   - UART0 TX
+   6          //   P0.5   - UART0 RX
+   7          //
+   8          //   P0.6   - SPI SCK
+   9          //   P0.7   - SPI MISO
+  10          //   P1.0   - SPI MOSI
+  11          //   P1.1   - SPI NSS
+  12          
+  13          
+  14          //   P0.2   _ExternInterruput
+  15          
+  16          //   P1.6   ADC 采集引脚
+  17          //-----------------------------------------------------------------------------
+  18          // Includes
+  19          //-----------------------------------------------------------------------------
+  20          #include <SI_EFM8BB2_Register_Enums.h>
+  21          #include "stdio.h"
+  22          #include "InitDevice.h"
+  23          #include "spi.h"
+  24          SI_SBIT (LED_GREEN, SFR_P1, 4);           // green LED
+  25          //extern int count;
+  26          
+  27          //void UART1_SendData(char dat)
+  28          //{
+  29          //  IE &= ~(1<<4);
+  30          //  SBUF0 = dat;
+  31          //  while(!(SCON0 & 1<<1));    //
+  32          //  SCON0 &= ~(1<<1);          //
+  33          //  IE |= (1<<4);
+  34          //}
+  35          
+  36          ////UART0  
+  37          //void UART1_SendString(char *s)
+  38          //{
+  39          //  while(*s)   //
+  40          //  {
+  41          //    UART1_SendData(*s++);
+  42          //  }
+  43          //}
+  44          
+  45          
+  46          //char putchar(char c)
+  47          //{
+  48          //  UART1_SendData(c);
+  49          //  return c;
+  50          //}
+  51          //unsigned int mV;
+  52          unsigned int V;
+  53          unsigned char lock;
+  54          extern unsigned char VOT_value[];
+C51 COMPILER V9.54   MAIN                                                                  12/13/2018 17:49:10 PAGE 2   
+
+  55          
+  56          
+  57          extern unsigned char min_text[2];
+  58          extern unsigned char sec_text[2];
+  59          extern unsigned short minute,second;
+  60          extern unsigned short rising_count;                        //记录上升沿次数
+  61          unsigned char OSD_Data[4]={0};
+  62          void Show_time(unsigned char dat,char buff[])
+  63          {
+  64   1          buff[0] = dat/10;
+  65   1          buff[1] = dat%10;
+  66   1      }
+  67          
+  68          void Show_Voltage(int value,char buff[])
+  69          {
+  70   1          buff[0] = value/100;
+  71   1          buff[1] = value%100/10;
+  72   1          buff[2] = value%100%10;
+  73   1      }
+  74          
+  75          //void Get_voltage()
+  76          //{
+  77          //   static uint32_t accumulator = 0;     // Accumulator for averaging
+  78          //   static uint16_t measurements = 2048; // Measurement counter
+  79          //   uint32_t result = 0;
+  80          ////   uint32_t mV;                       // Measured voltage in mV
+  81          //   uint8_t SFRPAGE_save;
+  82          
+  83          //   ADC0CN0 |= 0x01<<4;       //清除标志位
+  84          //   ADC0CN0_ADINT = 0;                   // Clear ADC0 conv. complete flag
+  85          
+  86          //   accumulator += ADC0;
+  87          //   measurements--;
+  88          
+  89          //   if(measurements == 0)
+  90          //   {
+  91          //    measurements = 2048;
+  92          //    result = accumulator / 2048;
+  93          //    accumulator = 0;
+  94          //    mV =  (result * 3300) / 1023;
+  95          //    SFRPAGE_save = SFRPAGE;
+  96          //    SFRPAGE = LEGACY_PAGE;
+  97          //    Show_Voltage(mV,VOT_value);
+  98          //    SFRPAGE = SFRPAGE_save;
+  99          //   }
+ 100          //}
+ 101          
+ 102          //int i;
+ 103          void main (void)
+ 104          {
+ 105   1         WDTCN = 0xDE; //First key
+ 106   1         WDTCN = 0xAD; //Second key
+ 107   1         CLOCK_Init();
+ 108   1         EX0_Init();
+ 109   1         Timer0_Init();
+ 110   1         SPI0_Init();
+ 111   1         ADC_Init();
+ 112   1         SCON0_TI = 1;                       // This STDIO library requires TI to
+ 113   1         IE_EA = 1;
+ 114   1         P1MDIN |= P1MDIN_B5__DIGITAL;
+ 115   1         P1SKIP |= P1SKIP_B5__NOT_SKIPPED;
+ 116   1         P1MDOUT |= P1MDOUT_B5__OPEN_DRAIN;
+C51 COMPILER V9.54   MAIN                                                                  12/13/2018 17:49:10 PAGE 3   
+
+ 117   1         while (1)
+ 118   1         {
+ 119   2            Read_Data(OSD_Data,4);          //读取飞控要显示再OSD的数据
+ 120   2            if(OSD_Data[3] == OSD_checksum(OSD_Data))
+ 121   2            {
+ 122   3                if(OSD_Data[0] == 1)        //电压数据
+ 123   3                {
+ 124   4                    V = (OSD_Data[1] << 8) + OSD_Data[2];
+ 125   4                }
+ 126   3                
+ 127   3                if(OSD_Data[0] == 2)        //解锁标志
+ 128   3                {
+ 129   4                    lock = (OSD_Data[1] << 8) + OSD_Data[2];
+ 130   4                }
+ 131   3            }
+ 132   2            //Get_voltage();
+ 133   2              Show_Voltage(V,VOT_value);
+ 134   2            Show_time(second,sec_text);
+ 135   2            Show_time(minute,min_text);
+ 136   2         }
+ 137   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    235    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      7       5
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

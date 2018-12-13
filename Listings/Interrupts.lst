@@ -1,0 +1,175 @@
+C51 COMPILER V9.54   INTERRUPTS                                                            12/13/2018 17:49:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE INTERRUPTS
+OBJECT MODULE PLACED IN .\Objects\Interrupts.obj
+COMPILER INVOKED BY: C:\Keil_v4\C51\BIN\C51.EXE src\Interrupts.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\inc) DEBUG OBJECTEXTE
+                    -ND PRINT(.\Listings\Interrupts.lst) TABS(2) OBJECT(.\Objects\Interrupts.obj)
+
+line level    source
+
+   1          #include <SI_EFM8BB2_Register_Enums.h>
+   2          #include "ascii.h"
+   3          unsigned int line = 0;
+   4          SI_SBIT (LED_GREEN, SFR_P1, 4);                         // green LED
+   5          
+   6          char *Buf;
+   7          int flag = 0;
+   8          int temp =0;
+   9          
+  10          extern unsigned char lock;
+  11          
+  12          unsigned char voltage[] = {'V','O','L'};
+  13          unsigned char VOT_value[5] = {0,0,0};
+  14          
+  15          unsigned char timeText[] = {'T','I','M','E'};
+  16          //unsigned char time[4]={0,1,2,3};
+  17          
+  18          unsigned char buffer[20];
+  19          unsigned int buffer1[10];
+  20          
+  21          unsigned short minute=0,second=0;
+  22          unsigned char min_text[2];
+  23          unsigned char sec_text[2];
+  24          unsigned short rising_count=0;                        //上升沿中断次数统计
+  25          void delay(int n)
+  26          {
+  27   1        int i;
+  28   1        for(i=0;i<n;i++);
+  29   1      }
+  30          void OSD_OUT(char buf)
+  31          {
+  32   1        int i;
+  33   1        SPI0DAT = buf;
+  34   1        for(i=0;i<1;i++);
+  35   1      }
+  36          
+  37          
+  38          SI_INTERRUPT (INT0_ISR, INT0_IRQn)
+  39          {
+  40   1         if(flag == 0)
+  41   1         {
+  42   2            TH0 = 0x00;
+  43   2            TL0 = 0x00;
+  44   2            IT01CF = IT01CF_IN0PL__ACTIVE_LOW | IT01CF_IN0SL__P0_2;            //切换为下降沿中断触发
+  45   2            if(lock == 0x01)
+  46   2            {
+  47   3              rising_count++;
+  48   3            }
+  49   2            if(rising_count>=16129)         //1S定时
+  50   2            {
+  51   3                rising_count = 0;
+  52   3                second+=1;
+  53   3                if(second >= 60)
+  54   3                {
+C51 COMPILER V9.54   INTERRUPTS                                                            12/13/2018 17:49:10 PAGE 2   
+
+  55   4                    second = 0;
+  56   4                    minute++;
+  57   4                    if(minute>=60)
+  58   4                    {
+  59   5                        minute = 0;
+  60   5                    }
+  61   4                }
+  62   3                
+  63   3            }
+  64   2            flag = 1;
+  65   2         }
+  66   1         else 
+  67   1         {
+  68   2            if(((TH0<<8)|TL0)>490)
+  69   2            {       
+  70   3               line = 0;
+  71   3            }
+  72   2            if(130 < line && line < 147)
+  73   2            {
+  74   3                temp = line - 130;
+  75   3                delay(63);
+  76   3                OSD_OUT(LargeNumbers[320+(2*temp)]);
+  77   3                OSD_OUT(LargeNumbers[320+(2*temp)+1]);
+  78   3            }
+  79   2            
+  80   2            if(230 < line && line < 239)                              //判断到啊210行
+  81   2            {
+  82   3              
+  83   3                /*电压字符和时间字符显示*/
+  84   3                temp = line - 231;
+  85   3                buffer[0]=(voltage[0])<<3;
+  86   3                buffer[1]=(voltage[1])<<3;
+  87   3                buffer[2]=(voltage[2])<<3;   
+  88   3                
+  89   3                buffer[7]=(timeText[0])<<3;   
+  90   3                buffer[8]=(timeText[1])<<3;   
+  91   3                buffer[9]=(timeText[2])<<3;   
+  92   3                buffer[10]=(timeText[3])<<3;  
+  93   3              
+  94   3                delay(3);
+  95   3                OSD_OUT(letters[(buffer[0])+(temp)]);
+  96   3                OSD_OUT(letters[(buffer[1])+(temp)]);
+  97   3                OSD_OUT(letters[(buffer[2])+(temp)]); 
+  98   3                OSD_OUT(letters[(buffer[3])+(temp)]);
+  99   3                OSD_OUT(letters[(buffer[4])+(temp)]);
+ 100   3                OSD_OUT(letters[(buffer[5])+(temp)]);   
+ 101   3                OSD_OUT(letters[(buffer[6])+(temp)]); 
+ 102   3                delay(83);
+ 103   3                OSD_OUT(letters[(buffer[7])+(temp)]);
+ 104   3                OSD_OUT(letters[(buffer[8])+(temp)]);
+ 105   3                OSD_OUT(letters[(buffer[9])+(temp)]);
+ 106   3                OSD_OUT(letters[(buffer[10])+(temp)]);
+ 107   3            }
+ 108   2          
+ 109   2            
+ 110   2            if(240 < line && line < 249)                      //判断到达220行
+ 111   2            {
+ 112   3                /*电压数值 和 时间值显示*/
+ 113   3                temp = line - 241;
+ 114   3                buffer1[0]=VOT_value[0]<<3; 
+ 115   3                buffer1[1]=VOT_value[1]<<3; 
+ 116   3                buffer1[2]=VOT_value[2]<<3; 
+C51 COMPILER V9.54   INTERRUPTS                                                            12/13/2018 17:49:10 PAGE 3   
+
+ 117   3              
+ 118   3                buffer1[3]=min_text[0]<<3; 
+ 119   3                buffer1[4]=min_text[1]<<3; 
+ 120   3                buffer1[5]=sec_text[0]<<3; 
+ 121   3                buffer1[6]=sec_text[1]<<3; 
+ 122   3              
+ 123   3                delay(0);       
+ 124   3                OSD_OUT(numbers[(buffer1[0])+(temp)]);
+ 125   3                OSD_OUT(numbers[88+(temp)]);
+ 126   3                OSD_OUT(numbers[(buffer1[1])+(temp)]);
+ 127   3                OSD_OUT(numbers[(buffer1[2])+(temp)]);
+ 128   3                
+ 129   3                delay(91);
+ 130   3                OSD_OUT(numbers[(buffer1[3])+(temp)]);
+ 131   3                OSD_OUT(numbers[(buffer1[4])+(temp)]);
+ 132   3                OSD_OUT(numbers[104+(temp)]);
+ 133   3                OSD_OUT(numbers[(buffer1[5])+(temp)]);
+ 134   3                OSD_OUT(numbers[(buffer1[6])+(temp)]);
+ 135   3              
+ 136   3      
+ 137   3            }
+ 138   2            
+ 139   2            OSD_OUT(0x00);
+ 140   2            line++;
+ 141   2            IT01CF = IT01CF_IN0PL__ACTIVE_HIGH | IT01CF_IN0SL__P0_2;                     //切换为上升沿中�
+             -�触发
+ 142   2            flag = 0;
+ 143   2         } 
+ 144   1      }
+ 145          
+ 146          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    828    ----
+   CONSTANT SIZE    =    904    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     71    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

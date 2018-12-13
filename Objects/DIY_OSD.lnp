@@ -1,0 +1,7 @@
+".\Objects\SILABS_STARTUP.obj",
+".\Objects\InitDevice.obj",
+".\Objects\Interrupts.obj",
+".\Objects\main.obj",
+".\Objects\spi.obj" 
+TO ".\Objects\DIY_OSD" 
+PRINT(".\Listings\DIY_OSD.m51") RAMSIZE(256) 
